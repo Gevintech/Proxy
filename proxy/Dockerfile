@@ -1,7 +1,20 @@
-FROM node:20-slim
+# Use official Node.js LTS image
+FROM node:20-alpine
+
+# Set working directory
 WORKDIR /app
-COPY package.json ./
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
 RUN npm install --production
-COPY server.js ./
-EXPOSE 3000
+
+# Copy all source files
+COPY . .
+
+# Expose port (must match server)
+EXPOSE 8080
+
+# Start the app
 CMD ["node", "server.js"]
