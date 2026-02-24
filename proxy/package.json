@@ -1,13 +1,18 @@
 {
   "name": "rellpay-proxy",
   "version": "1.0.0",
-  "description": "Relworx Payments proxy for static IP whitelisting on Fly.io",
+  "description": "Lovable AI proxy for Relworx",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "cors": "^2.8.5"
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "node-fetch": "^3.3.2",
+    "uuid": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
