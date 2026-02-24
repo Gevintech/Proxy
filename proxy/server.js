@@ -1,23 +1,19 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
-const fetch = require("node-fetch"); // Added for Node.js fetch support
-const { v4: uuidv4 } = require("uuid"); // For generating unique references
+const fetch = require("node-fetch");
+const { v4: uuidv4 } = require("uuid");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- Config ---
 const RELWORX_BASE = "https://payments.relworx.com/api";
 const RELWORX_API_KEY = process.env.RELWORX_API_KEY;
 const RELWORX_ACCOUNT_NO = process.env.RELWORX_ACCOUNT_NO;
-const PROXY_SECRET = process.env.PROXY_SECRET; // shared secret between edge fn & proxy
+const PROXY_SECRET = process.env.PROXY_SECRET;
 
-// --- Middleware ---
 app.use(cors());
 app.use(express.json());
 
-// Request logging
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
@@ -26,7 +22,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Auth middleware — verify shared secret
 function authenticate(req, res, next) {
   const authHeader = req.headers["x-proxy-secret"];
   if (!PROXY_SECRET || authHeader !== PROXY_SECRET) {
@@ -35,14 +30,12 @@ function authenticate(req, res, next) {
   next();
 }
 
-// --- Helper: call Relworx ---
 async function relworxRequest(method, path, body = null, query = null) {
   let url = `${RELWORX_BASE}${path}`;
   if (query) {
     const params = new URLSearchParams(query);
     url += `?${params.toString()}`;
   }
-
   const options = {
     method,
     headers: {
@@ -51,32 +44,22 @@ async function relworxRequest(method, path, body = null, query = null) {
       Authorization: `Bearer ${RELWORX_API_KEY}`,
     },
   };
-
   if (body && (method === "POST" || method === "PUT")) {
     options.body = JSON.stringify(body);
   }
-
   const response = await fetch(url, options);
   const data = await response.json();
   return { status: response.status, data };
 }
 
-// --- Routes ---
-
-// Health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "rellpay-proxy", timestamp: new Date().toISOString() });
 });
 
-// Collect money (request payment)
 app.post("/relworx/collect", authenticate, async (req, res) => {
   try {
     const { msisdn, amount, currency, description, reference } = req.body;
-
-    if (!msisdn || !amount || !currency) {
-      return res.status(400).json({ error: "msisdn, amount, and currency are required" });
-    }
-
+    if (!msisdn || !amount || !currency) return res.status(400).json({ error: "msisdn, amount, and currency required" });
     const accountNo = req.body.account_no || RELWORX_ACCOUNT_NO;
     const payload = {
       account_no: accountNo,
@@ -86,7 +69,6 @@ app.post("/relworx/collect", authenticate, async (req, res) => {
       amount: parseFloat(amount),
       description: description || "",
     };
-
     console.log(`[COLLECT] ${msisdn} ${currency} ${amount}`);
     const { status, data } = await relworxRequest("POST", "/mobile-money/request-payment", payload);
     res.status(status).json(data);
@@ -96,15 +78,10 @@ app.post("/relworx/collect", authenticate, async (req, res) => {
   }
 });
 
-// Send money (payout)
 app.post("/relworx/send", authenticate, async (req, res) => {
   try {
     const { msisdn, amount, currency, description, reference } = req.body;
-
-    if (!msisdn || !amount || !currency) {
-      return res.status(400).json({ error: "msisdn, amount, and currency are required" });
-    }
-
+    if (!msisdn || !amount || !currency) return res.status(400).json({ error: "msisdn, amount, and currency required" });
     const accountNo = req.body.account_no || RELWORX_ACCOUNT_NO;
     const payload = {
       account_no: accountNo,
@@ -114,7 +91,6 @@ app.post("/relworx/send", authenticate, async (req, res) => {
       amount: parseFloat(amount),
       description: description || "",
     };
-
     console.log(`[SEND] ${msisdn} ${currency} ${amount}`);
     const { status, data } = await relworxRequest("POST", "/mobile-money/send-payment", payload);
     res.status(status).json(data);
@@ -124,21 +100,13 @@ app.post("/relworx/send", authenticate, async (req, res) => {
   }
 });
 
-// Check transaction status
 app.post("/relworx/status", authenticate, async (req, res) => {
   try {
     const { internal_reference } = req.body;
-
-    if (!internal_reference) {
-      return res.status(400).json({ error: "internal_reference is required" });
-    }
-
+    if (!internal_reference) return res.status(400).json({ error: "internal_reference required" });
     const accountNo = req.body.account_no || RELWORX_ACCOUNT_NO;
     console.log(`[STATUS] ${internal_reference}`);
-    const { status, data } = await relworxRequest("GET", "/mobile-money/check-request-status", null, {
-      account_no: accountNo,
-      internal_reference,
-    });
+    const { status, data } = await relworxRequest("GET", "/mobile-money/check-request-status", null, { account_no: accountNo, internal_reference });
     res.status(status).json(data);
   } catch (err) {
     console.error("[STATUS ERROR]", err.message);
@@ -146,17 +114,12 @@ app.post("/relworx/status", authenticate, async (req, res) => {
   }
 });
 
-// Check wallet balance
 app.post("/relworx/balance", authenticate, async (req, res) => {
   try {
     const currency = req.body.currency || "KES";
     const accountNo = req.body.account_no || RELWORX_ACCOUNT_NO;
-
     console.log(`[BALANCE] ${currency}`);
-    const { status, data } = await relworxRequest("GET", "/mobile-money/check-wallet-balance", null, {
-      account_no: accountNo,
-      currency,
-    });
+    const { status, data } = await relworxRequest("GET", "/mobile-money/check-wallet-balance", null, { account_no: accountNo, currency });
     res.status(status).json(data);
   } catch (err) {
     console.error("[BALANCE ERROR]", err.message);
@@ -164,10 +127,9 @@ app.post("/relworx/balance", authenticate, async (req, res) => {
   }
 });
 
-// --- Start ---
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ RellPay Proxy running on port ${PORT}`);
   console.log(`   Account: ${RELWORX_ACCOUNT_NO}`);
-  console.log(`   API Key: ${RELWORX_API_KEY ? "configured" : "⚠️  MISSING"}`);
-  console.log(`   Proxy Secret: ${PROXY_SECRET ? "configured" : "⚠️  MISSING"}`);
+  console.log(`   API Key: ${RELWORX_API_KEY ? "configured" : "⚠️ MISSING"}`);
+  console.log(`   Proxy Secret: ${PROXY_SECRET ? "configured" : "⚠️ MISSING"}`);
 });
