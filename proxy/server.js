@@ -1,5 +1,8 @@
+// server.js
 const express = require("express");
 const cors = require("cors");
+const fetch = require("node-fetch"); // Added for Node.js fetch support
+const { v4: uuidv4 } = require("uuid"); // For generating unique references
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,7 +80,7 @@ app.post("/relworx/collect", authenticate, async (req, res) => {
     const accountNo = req.body.account_no || RELWORX_ACCOUNT_NO;
     const payload = {
       account_no: accountNo,
-      reference: reference || crypto.randomUUID().replace(/-/g, "").slice(0, 36),
+      reference: reference || uuidv4().replace(/-/g, "").slice(0, 36),
       msisdn,
       currency,
       amount: parseFloat(amount),
@@ -105,7 +108,7 @@ app.post("/relworx/send", authenticate, async (req, res) => {
     const accountNo = req.body.account_no || RELWORX_ACCOUNT_NO;
     const payload = {
       account_no: accountNo,
-      reference: reference || crypto.randomUUID().replace(/-/g, "").slice(0, 36),
+      reference: reference || uuidv4().replace(/-/g, "").slice(0, 36),
       msisdn,
       currency,
       amount: parseFloat(amount),
